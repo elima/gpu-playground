@@ -1,1 +1,5 @@
+vert.spv
+frag.spv
+
 render-nodes-minimal/render-nodes-minimal
+vulkan-minimal/vulkan-minimal
