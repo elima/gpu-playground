@@ -33,82 +33,13 @@
 
 #define VK_USE_PLATFORM_XCB_KHR
 #include <vulkan/vulkan.h>
+#include "common/vk-api.h"
 
 #define WIDTH  640
 #define HEIGHT 480
 
-PFN_vkVoidFunction vk_icdGetInstanceProcAddr (VkInstance instance,
-                                              const char* pName);
-
+static struct vk_api vk = { NULL, };
 static const VkAllocationCallbacks* allocator = VK_NULL_HANDLE;
-
-#define GET_ICD_PROC_ADDR(api, symbol)                                  \
-   api.symbol = (PFN_vk ##symbol) vk_icdGetInstanceProcAddr(NULL, "vk" #symbol);
-
-#define GET_PROC_ADDR(api, symbol)                                      \
-   api.symbol = (PFN_vk ##symbol) api.GetInstanceProcAddr(NULL, "vk" #symbol);
-
-#define GET_INSTANCE_PROC_ADDR(api, instance, symbol)                   \
-   api.symbol = (PFN_vk ##symbol) api.GetInstanceProcAddr(instance, "vk" #symbol);
-
-#define GET_DEVICE_PROC_ADDR(api, device, symbol)                       \
-   api.symbol = (PFN_vk ##symbol) api.GetDeviceProcAddr(device, "vk" #symbol);
-
-struct vk_api {
-   PFN_vkGetInstanceProcAddr                     GetInstanceProcAddr;
-   PFN_vkGetDeviceProcAddr                       GetDeviceProcAddr;
-   PFN_vkEnumerateInstanceLayerProperties        EnumerateInstanceLayerProperties;
-   PFN_vkEnumerateInstanceExtensionProperties    EnumerateInstanceExtensionProperties;
-   PFN_vkCreateInstance                          CreateInstance;
-   PFN_vkEnumeratePhysicalDevices                EnumeratePhysicalDevices;
-   PFN_vkGetPhysicalDeviceProperties             GetPhysicalDeviceProperties;
-   PFN_vkGetPhysicalDeviceQueueFamilyProperties  GetPhysicalDeviceQueueFamilyProperties;
-   PFN_vkCreateDevice                            CreateDevice;
-   PFN_vkEnumerateDeviceExtensionProperties      EnumerateDeviceExtensionProperties;
-   PFN_vkGetDeviceQueue                          GetDeviceQueue;
-   PFN_vkCreateCommandPool                       CreateCommandPool;
-   PFN_vkAllocateCommandBuffers                  AllocateCommandBuffers;
-   PFN_vkFreeCommandBuffers                      FreeCommandBuffers;
-   PFN_vkCreateRenderPass                        CreateRenderPass;
-   PFN_vkDestroyRenderPass                       DestroyRenderPass;
-   PFN_vkDestroyCommandPool                      DestroyCommandPool;
-   PFN_vkDestroyDevice                           DestroyDevice;
-   PFN_vkDestroyInstance                         DestroyInstance;
-   PFN_vkCreateGraphicsPipelines                 CreateGraphicsPipelines;
-   PFN_vkDestroyPipeline                         DestroyPipeline;
-   PFN_vkCreateShaderModule                      CreateShaderModule;
-   PFN_vkDestroyShaderModule                     DestroyShaderModule;
-   PFN_vkCreatePipelineLayout                    CreatePipelineLayout;
-   PFN_vkDestroyPipelineLayout                   DestroyPipelineLayout;
-   PFN_vkCreateImageView                         CreateImageView;
-   PFN_vkDestroyImageView                        DestroyImageView;
-   PFN_vkCreateFramebuffer                       CreateFramebuffer;
-   PFN_vkDestroyFramebuffer                      DestroyFramebuffer;
-   PFN_vkBeginCommandBuffer                      BeginCommandBuffer;
-   PFN_vkEndCommandBuffer                        EndCommandBuffer;
-   PFN_vkCmdBeginRenderPass                      CmdBeginRenderPass;
-   PFN_vkCmdBindPipeline                         CmdBindPipeline;
-   PFN_vkCmdDraw                                 CmdDraw;
-   PFN_vkCmdEndRenderPass                        CmdEndRenderPass;
-   PFN_vkCreateSemaphore                         CreateSemaphore;
-   PFN_vkDestroySemaphore                        DestroySemaphore;
-   PFN_vkQueueSubmit                             QueueSubmit;
-   PFN_vkDeviceWaitIdle                          DeviceWaitIdle;
-
-   PFN_vkCreateXcbSurfaceKHR                     CreateXcbSurfaceKHR;
-   PFN_vkDestroySurfaceKHR                       DestroySurfaceKHR;
-   PFN_vkGetPhysicalDeviceSurfaceSupportKHR      GetPhysicalDeviceSurfaceSupportKHR;
-   PFN_vkGetPhysicalDeviceSurfaceFormatsKHR      GetPhysicalDeviceSurfaceFormatsKHR;
-   PFN_vkGetPhysicalDeviceSurfacePresentModesKHR GetPhysicalDeviceSurfacePresentModesKHR;
-   PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR GetPhysicalDeviceSurfaceCapabilitiesKHR;
-   PFN_vkCreateSwapchainKHR                      CreateSwapchainKHR;
-   PFN_vkDestroySwapchainKHR                     DestroySwapchainKHR;
-   PFN_vkGetSwapchainImagesKHR                   GetSwapchainImagesKHR;
-   PFN_vkAcquireNextImageKHR                     AcquireNextImageKHR;
-   PFN_vkQueuePresentKHR                         QueuePresentKHR;
-};
-
-static struct vk_api vk;
 
 struct vk_objects {
    VkPhysicalDevice physical_device;
@@ -934,10 +865,7 @@ main (int argc, char* argv[])
    /* ======================================================================= */
 
    /* load API entry points from ICD */
-   GET_ICD_PROC_ADDR (vk, GetInstanceProcAddr);
-   GET_PROC_ADDR (vk, EnumerateInstanceLayerProperties);
-   GET_PROC_ADDR (vk, EnumerateInstanceExtensionProperties);
-   GET_PROC_ADDR (vk, CreateInstance);
+   vk_api_load_from_icd (&vk);
 
    /* enummerate available layers */
    uint32_t layers_count;
@@ -998,21 +926,7 @@ main (int argc, char* argv[])
    printf ("Vulkan instance created\n");
 
    /* load instance-dependent API entry points */
-   GET_INSTANCE_PROC_ADDR (vk, instance, DestroyInstance);
-   GET_INSTANCE_PROC_ADDR (vk, instance, EnumeratePhysicalDevices);
-   GET_INSTANCE_PROC_ADDR (vk, instance, GetPhysicalDeviceQueueFamilyProperties);
-   GET_INSTANCE_PROC_ADDR (vk, instance, CreateDevice);
-   GET_INSTANCE_PROC_ADDR (vk, instance, EnumerateDeviceExtensionProperties);
-   GET_INSTANCE_PROC_ADDR (vk, instance, GetPhysicalDeviceProperties);
-
-   GET_INSTANCE_PROC_ADDR (vk, instance, CreateXcbSurfaceKHR);
-   GET_INSTANCE_PROC_ADDR (vk, instance, DestroySurfaceKHR);
-   GET_INSTANCE_PROC_ADDR (vk, instance, GetPhysicalDeviceSurfaceSupportKHR);
-   GET_INSTANCE_PROC_ADDR (vk, instance, GetPhysicalDeviceSurfaceFormatsKHR);
-   GET_INSTANCE_PROC_ADDR (vk, instance,
-                           GetPhysicalDeviceSurfacePresentModesKHR);
-   GET_INSTANCE_PROC_ADDR (vk, instance,
-                           GetPhysicalDeviceSurfaceCapabilitiesKHR);
+   vk_api_load_from_instance (&vk, &instance);
 
    /* query physical devices */
    uint32_t num_devices = 5;
@@ -1170,41 +1084,7 @@ main (int argc, char* argv[])
    config.present_mode = present_mode;
 
    /* load device-dependent API entry points */
-   GET_INSTANCE_PROC_ADDR (vk, instance, GetDeviceProcAddr);
-   GET_DEVICE_PROC_ADDR (vk, device, CreateCommandPool);
-   GET_DEVICE_PROC_ADDR (vk, device, CmdBeginRenderPass);
-   GET_DEVICE_PROC_ADDR (vk, device, CmdDraw);
-   GET_DEVICE_PROC_ADDR (vk, device, CmdEndRenderPass);
-   GET_DEVICE_PROC_ADDR (vk, device, AllocateCommandBuffers);
-   GET_DEVICE_PROC_ADDR (vk, device, FreeCommandBuffers);
-   GET_DEVICE_PROC_ADDR (vk, device, GetDeviceQueue);
-   GET_DEVICE_PROC_ADDR (vk, device, CreateRenderPass);
-   GET_DEVICE_PROC_ADDR (vk, device, DestroyRenderPass);
-   GET_DEVICE_PROC_ADDR (vk, device, DestroyCommandPool);
-   GET_DEVICE_PROC_ADDR (vk, device, DestroyDevice);
-   GET_DEVICE_PROC_ADDR (vk, device, CreateGraphicsPipelines);
-   GET_DEVICE_PROC_ADDR (vk, device, DestroyPipeline);
-   GET_DEVICE_PROC_ADDR (vk, device, CreateShaderModule);
-   GET_DEVICE_PROC_ADDR (vk, device, DestroyShaderModule);
-   GET_DEVICE_PROC_ADDR (vk, device, CreatePipelineLayout);
-   GET_DEVICE_PROC_ADDR (vk, device, DestroyPipelineLayout);
-   GET_DEVICE_PROC_ADDR (vk, device, CreateImageView);
-   GET_DEVICE_PROC_ADDR (vk, device, DestroyImageView);
-   GET_DEVICE_PROC_ADDR (vk, device, CreateFramebuffer);
-   GET_DEVICE_PROC_ADDR (vk, device, DestroyFramebuffer);
-   GET_DEVICE_PROC_ADDR (vk, device, BeginCommandBuffer);
-   GET_DEVICE_PROC_ADDR (vk, device, EndCommandBuffer);
-   GET_DEVICE_PROC_ADDR (vk, device, CmdBindPipeline);
-   GET_DEVICE_PROC_ADDR (vk, device, CreateSemaphore);
-   GET_DEVICE_PROC_ADDR (vk, device, DestroySemaphore);
-   GET_DEVICE_PROC_ADDR (vk, device, QueueSubmit);
-   GET_DEVICE_PROC_ADDR (vk, device, DeviceWaitIdle);
-
-   GET_DEVICE_PROC_ADDR (vk, device, CreateSwapchainKHR);
-   GET_DEVICE_PROC_ADDR (vk, device, DestroySwapchainKHR);
-   GET_DEVICE_PROC_ADDR (vk, device, GetSwapchainImagesKHR);
-   GET_DEVICE_PROC_ADDR (vk, device, AcquireNextImageKHR);
-   GET_DEVICE_PROC_ADDR (vk, device, QueuePresentKHR);
+   vk_api_load_from_device (&vk, &device);
 
    /* create the vertex shader module */
    size_t shader_code_size;
