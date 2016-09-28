@@ -20,6 +20,7 @@ $(TARGET): main.c vert.spv frag.spv \
 		`pkg-config --libs --cflags xcb` \
 		-L $(VULKAN_SO_PATH) \
 		-l$(VULKAN_SO_NAME) \
+		-DVK_USE_PLATFORM_XCB_KHR \
 		-o $(TARGET) \
 		common/vk-api.c \
 		main.c

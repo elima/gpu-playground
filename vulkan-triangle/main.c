@@ -31,7 +31,7 @@
 #include <unistd.h>
 #include <xcb/xcb.h>
 
-#define VK_USE_PLATFORM_XCB_KHR
+/* 'VK_USE_PLATFORM_X_KHR' currently defined as flag in Makefile */
 #include <vulkan/vulkan.h>
 #include "common/vk-api.h"
 
