@@ -867,8 +867,6 @@ main (int32_t argc, char* argv[])
          continue;
       }
 
-      assert (result == VK_SUCCESS);
-
       /* submit the command buffer to the graphics queue */
       VkSemaphore wait_semaphores[] = {image_available_semaphore};
       VkSemaphore signal_semaphores[] = {render_finished_semaphore};
