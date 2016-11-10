@@ -17,7 +17,12 @@ void
 vk_api_load_from_icd (struct vk_api* vk)
 {
    /* load API entry points from ICD */
-   GET_ICD_PROC_ADDR (*vk, GetInstanceProcAddr);
+
+   /* if program is linked against a Vulkan loader */
+   vk->GetInstanceProcAddr = vkGetInstanceProcAddr;
+   /* otherwise, */
+   /* GET_ICD_PROC_ADDR (vk, GetInstanceProcAddr); */
+
    GET_PROC_ADDR (*vk, EnumerateInstanceLayerProperties);
    GET_PROC_ADDR (*vk, EnumerateInstanceExtensionProperties);
    GET_PROC_ADDR (*vk, CreateInstance);

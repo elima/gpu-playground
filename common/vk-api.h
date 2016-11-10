@@ -14,11 +14,14 @@
 
 #include <vulkan/vulkan.h>
 
+/* This is only necessary if program is linked to a Vulkan vendor driver\
+ * directly
+ */
 PFN_vkVoidFunction vk_icdGetInstanceProcAddr (VkInstance instance,
                                               const char* pName);
-
 #define GET_ICD_PROC_ADDR(api, symbol)                                  \
-   (api).symbol = (PFN_vk ##symbol) vk_icdGetInstanceProcAddr(NULL, "vk" #symbol);
+   api.symbol = (PFN_vk ##symbol) vk_icdGetInstanceProcAddr(NULL, "vk" #symbol);
+
 
 #define GET_PROC_ADDR(api, symbol)                                      \
    (api).symbol = (PFN_vk ##symbol) (api).GetInstanceProcAddr(NULL, "vk" #symbol);
