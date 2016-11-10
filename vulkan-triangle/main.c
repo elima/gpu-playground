@@ -21,6 +21,7 @@
  */
 
 #include <assert.h>
+#include "common/wsi.h"
 #include <fcntl.h>
 #include <signal.h>
 #include <stdbool.h>
@@ -29,7 +30,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <xcb/xcb.h>
 
 /* 'VK_USE_PLATFORM_X_KHR' currently defined as flag in Makefile */
 #include <vulkan/vulkan.h>
@@ -85,11 +85,6 @@ static bool running = false;
 static bool damaged = false;
 static bool expose = false;
 
-static xcb_connection_t* xcb_conn = NULL;
-static xcb_screen_t* xcb_screen = NULL;
-static xcb_window_t xcb_win = 0;
-static xcb_intern_atom_reply_t* atom_wm_delete_window;
-
 static bool
 recreate_swapchain (struct vk_objects* objs,
                     struct vk_config* config,
@@ -131,93 +126,6 @@ ctrl_c_handler (int32_t dummy)
 {
    running = false;
    signal (SIGINT, NULL);
-}
-
-static void
-wsi_toggle_fullscreen_xcb (void)
-{
-   static bool fullscreen_mode = false;
-
-   fullscreen_mode = ! fullscreen_mode;
-
-   xcb_intern_atom_cookie_t cookie =
-      xcb_intern_atom (xcb_conn, 0, 13, "_NET_WM_STATE");
-   xcb_intern_atom_reply_t* reply = xcb_intern_atom_reply (xcb_conn, cookie, 0);
-   xcb_atom_t atom1 = reply->atom;
-   free (reply);
-
-   cookie = xcb_intern_atom (xcb_conn, 0, 24, "_NET_WM_STATE_FULLSCREEN");
-   reply = xcb_intern_atom_reply (xcb_conn, cookie, 0);
-   xcb_atom_t atom2 = reply->atom;
-   free (reply);
-
-   xcb_client_message_event_t msg = {0};
-   msg.response_type = XCB_CLIENT_MESSAGE;
-   msg.window = xcb_win;
-   msg.format = 32;
-   msg.type = atom1;
-   memset (msg.data.data32, 0, 5 * sizeof (uint32_t));
-   msg.data.data32[0] = fullscreen_mode ? 1 : 0;
-   msg.data.data32[1] = atom2;
-
-   xcb_send_event (xcb_conn,
-                   true,
-                   xcb_screen->root,
-                   XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY,
-                   (const char *) &msg);
-   xcb_flush (xcb_conn);
-}
-
-static bool
-wsi_handle_event_xcb (xcb_generic_event_t* event)
-{
-   while (event != NULL) {
-      uint8_t event_code = event->response_type & 0x7f;
-      switch (event_code) {
-      case XCB_EXPOSE:
-         damaged = true;
-         expose = true;
-         break;
-
-      case XCB_CLIENT_MESSAGE:
-         if ((* (xcb_client_message_event_t*) event).data.data32[0] ==
-             (* atom_wm_delete_window).atom) {
-            running = false;
-            damaged = false;
-         }
-         break;
-
-      case XCB_KEY_RELEASE: {
-         const xcb_key_release_event_t* key =
-            (const xcb_key_release_event_t*) event;
-         switch (key->detail) {
-         case 0x9:
-            /* ESC key */
-            running = false;
-            damaged = false;
-            break;
-
-         case 0x29:
-            /* F key */
-            wsi_toggle_fullscreen_xcb ();
-            break;
-
-         default:
-            printf ("key pressed: %x\n", key->detail);
-            break;
-         }
-         break;
-      }
-
-      default:
-         break;
-      }
-
-      free (event);
-      event = xcb_poll_for_event (xcb_conn);
-   }
-
-   return running;
 }
 
 static bool
@@ -800,66 +708,19 @@ draw_frame (struct vk_objects* objs, struct vk_state* state)
    return true;
 }
 
-int
-main (int argc, char* argv[])
+static void
+wsi_on_expose (void)
+{
+   expose = true;
+   damaged = true;
+}
+
+int32_t
+main (int32_t argc, char* argv[])
 {
    /* XCB setup */
    /* ======================================================================= */
-
-   /* connection to the X server */
-   xcb_conn = xcb_connect (NULL, NULL);
-   if (xcb_conn == NULL) {
-      printf ("XCB: Error: Failed to connect to X server\n");
-      goto free_stuff;
-   }
-   printf ("XCB: Connected to the X server\n");
-
-   /* Get the first screen */
-   const xcb_setup_t* xcb_setup  = xcb_get_setup (xcb_conn);
-   xcb_screen_iterator_t iter   = xcb_setup_roots_iterator (xcb_setup);
-   xcb_screen = iter.data;
-
-   /* Create the window */
-   xcb_win = xcb_generate_id (xcb_conn);
-
-   uint32_t value_mask, value_list[32];
-   value_mask = XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK;
-   value_list[0] = xcb_screen->black_pixel;
-   value_list[1] = XCB_EVENT_MASK_KEY_RELEASE | XCB_EVENT_MASK_EXPOSURE |
-      XCB_EVENT_MASK_STRUCTURE_NOTIFY;
-
-   xcb_create_window (xcb_conn,                      /* Connection          */
-                      XCB_COPY_FROM_PARENT,          /* depth (same as root)*/
-                      xcb_win,                       /* window Id           */
-                      xcb_screen->root,              /* parent window       */
-                      0, 0,                          /* x, y                */
-                      WIDTH, HEIGHT,                 /* width, height       */
-                      0,                             /* border_width        */
-                      XCB_WINDOW_CLASS_INPUT_OUTPUT, /* class               */
-                      xcb_screen->root_visual,       /* visual              */
-                      value_mask, value_list);       /* masks, not used yet */
-
-   xcb_intern_atom_cookie_t cookie =
-      xcb_intern_atom (xcb_conn, 1, 12, "WM_PROTOCOLS");
-   xcb_intern_atom_reply_t* reply = xcb_intern_atom_reply (xcb_conn, cookie, 0);
-
-   xcb_intern_atom_cookie_t cookie1 =
-      xcb_intern_atom (xcb_conn, 0, 16, "WM_DELETE_WINDOW");
-   atom_wm_delete_window = xcb_intern_atom_reply (xcb_conn, cookie1, 0);
-
-   xcb_change_property (xcb_conn,
-                        XCB_PROP_MODE_REPLACE,
-                        xcb_win,
-                        (*reply).atom,
-                        4, 32, 1,
-                        &(*atom_wm_delete_window).atom);
-
-   free (reply);
-
-   /* Make sure commands are sent before we pause so that the window gets
-    * shown.
-    */
-   xcb_flush (xcb_conn);
+   wsi_init (NULL, WIDTH, HEIGHT, wsi_on_expose);
 
    /* Vulkan setup */
    /* ======================================================================= */
@@ -869,6 +730,7 @@ main (int argc, char* argv[])
 
    /* enummerate available layers */
    uint32_t layers_count;
+   printf ("%p\n", &vk);
    vk.EnumerateInstanceLayerProperties (&layers_count, NULL);
    printf ("Found %u instance layers\n", layers_count);
 
@@ -985,11 +847,16 @@ main (int argc, char* argv[])
               ext_props[i].specVersion);
 
    /* create a vulkan surface, from the XCB window (VkSurfaceKHR) */
+   xcb_window_t* xcb_win = 0;
+   xcb_connection_t* xcb_conn = NULL;
+   wsi_get_connection_and_window ((const void**) &xcb_conn,
+                                  (const void**) &xcb_win);
+
    VkSurfaceKHR surface = VK_NULL_HANDLE;
    VkXcbSurfaceCreateInfoKHR surface_info = {
       .sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR,
       .connection = xcb_conn,
-      .window = xcb_win,
+      .window = *xcb_win,
    };
    if (vk.CreateXcbSurfaceKHR (instance,
                                &surface_info,
@@ -1210,16 +1077,14 @@ main (int argc, char* argv[])
 
    running = true;
    damaged = true;
+   expose = true;
 
    /* Map the window onto the screen */
-   xcb_map_window (xcb_conn, xcb_win);
+   wsi_window_show ();
 
    while (running) {
-      xcb_generic_event_t* event;
-
       if (! damaged && ! expose) {
-         event = xcb_wait_for_event (xcb_conn);
-         if (! wsi_handle_event_xcb (event))
+         if (! wsi_wait_for_events ())
             break;
       }
 
@@ -1277,15 +1142,7 @@ main (int argc, char* argv[])
    vk.DestroyInstance (instance, allocator);
 
    /* teardown WSI */
-
-   /* Unmap the window from the screen */
-   xcb_unmap_window (xcb_conn, xcb_win);
-
-   free (atom_wm_delete_window);
-
-   /* disconnect from the X server */
-   if (xcb_conn != NULL)
-      xcb_disconnect (xcb_conn);
+   wsi_finish ();
 
    printf ("Clean exit\n");
 

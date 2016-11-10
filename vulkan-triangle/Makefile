@@ -14,6 +14,7 @@ frag.spv: shader.frag
 	$(GLSL_VALIDATOR) -V shader.frag
 
 $(TARGET): main.c vert.spv frag.spv \
+	common/wsi.h common/wsi-xcb.c \
 	common/vk-api.h common/vk-api.c
 	gcc -ggdb -O0 -Wall -std=c99 \
 		-DCURRENT_DIR=\"`pwd`\" \
@@ -22,6 +23,7 @@ $(TARGET): main.c vert.spv frag.spv \
 		-l$(VULKAN_SO_NAME) \
 		-DVK_USE_PLATFORM_XCB_KHR \
 		-o $(TARGET) \
+		common/wsi-xcb.c \
 		common/vk-api.c \
 		main.c
 
