@@ -13,10 +13,10 @@ frag.spv: shader.frag
 $(TARGET): Makefile main.c vert.spv frag.spv
 	gcc -ggdb -O0 -Wall -std=c99 \
 		-DCURRENT_DIR=\"`pwd`\" \
+		main.c \
 		`pkg-config --libs --cflags xcb` \
 		-lvulkan \
-		-o $(TARGET) \
-		main.c
+		-o $(TARGET)
 
 clean:
 	rm -f $(TARGET) vert.spv frag.spv

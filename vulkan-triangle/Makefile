@@ -15,13 +15,13 @@ $(TARGET): Makefile main.c vert.spv frag.spv \
 	common/vk-api.h common/vk-api.c
 	gcc -ggdb -O0 -Wall -std=c99 \
 		-DCURRENT_DIR=\"`pwd`\" \
+		main.c \
+		common/wsi-xcb.c \
+		common/vk-api.c \
 		`pkg-config --libs --cflags xcb` \
 		-lvulkan \
 		-DVK_USE_PLATFORM_XCB_KHR \
-		-o $(TARGET) \
-		common/wsi-xcb.c \
-		common/vk-api.c \
-		main.c
+		-o $(TARGET)
 
 clean:
 	rm -f $(TARGET) vert.spv frag.spv
